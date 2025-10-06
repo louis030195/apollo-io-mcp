@@ -2,6 +2,24 @@
 
 MCP (Model Context Protocol) server for Apollo.io B2B sales intelligence API. Search for prospects, enrich contacts, and discover companies directly from Claude, ChatGPT, or any LLM that supports MCP.
 
+---
+
+<div align="center">
+
+### 💖 Support This Project
+
+**If you find this MCP server useful, please consider supporting its development!**
+
+[![Support via Stripe](https://img.shields.io/badge/Support-Stripe-635bff?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/5kQ14n1j3a347Q59a8)
+
+[**👉 Click here to support this project**](https://buy.stripe.com/5kQ14n1j3a347Q59a8)
+
+Your support helps maintain and improve this tool for everyone. Thank you! 🙏
+
+</div>
+
+---
+
 ## Features
 
 - 🔍 **People Search** - Find prospects by job title, location, company
@@ -131,6 +149,9 @@ npm install
 
 # Build
 npm run build
+
+# Run tests
+npm test
 
 # Run locally
 APOLLO_API_KEY=your-api-key npm start
