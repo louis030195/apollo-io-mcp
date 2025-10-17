@@ -73,6 +73,25 @@ class ApolloClient {
     const response = await this.api.post("/mixed_companies/search", params);
     return response.data;
   }
+
+  async searchSequences(params?: {
+    name?: string;
+    page?: number;
+    per_page?: number;
+  }) {
+    const response = await this.api.post("/emailer_campaigns/search", params || {});
+    return response.data;
+  }
+
+  async getEmailAccounts() {
+    const response = await this.api.get("/email_accounts");
+    return response.data;
+  }
+
+  async getEmailMessageActivities(messageId: string) {
+    const response = await this.api.get(`/emailer_messages/${messageId}/activities`);
+    return response.data;
+  }
 }
 
 const SearchPeopleSchema = z.object({
@@ -102,6 +121,16 @@ const SearchOrganizationsSchema = z.object({
   employee_ranges: z.array(z.string()).optional().describe("Employee count ranges (e.g., ['1-10', '11-50'])"),
   page: z.number().optional().default(1).describe("Page number for pagination"),
   per_page: z.number().optional().default(10).describe("Results per page (max 100)"),
+});
+
+const SearchSequencesSchema = z.object({
+  name: z.string().optional().describe("Sequence name to filter by"),
+  page: z.number().optional().default(1).describe("Page number for pagination"),
+  per_page: z.number().optional().default(25).describe("Results per page"),
+});
+
+const GetEmailMessageActivitiesSchema = z.object({
+  message_id: z.string().describe("The emailer message ID to get activities for"),
 });
 
 async function main() {
@@ -229,6 +258,51 @@ async function main() {
               default: 10,
             },
           },
+        },
+      },
+      {
+        name: "apollo_search_sequences",
+        description: "Search for email sequences in your Apollo account. Returns sequence stats including sent, bounced, replied counts. Requires master API key.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              description: "Sequence name to filter by",
+            },
+            page: {
+              type: "number",
+              description: "Page number for pagination",
+              default: 1,
+            },
+            per_page: {
+              type: "number",
+              description: "Results per page",
+              default: 25,
+            },
+          },
+        },
+      },
+      {
+        name: "apollo_get_email_accounts",
+        description: "Get list of email accounts connected to your Apollo account. Requires master API key.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
+      {
+        name: "apollo_get_email_message_activities",
+        description: "Get activities (opens, clicks, replies) for a specific email message sent via sequence. Requires master API key.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            message_id: {
+              type: "string",
+              description: "The emailer message ID to get activities for",
+            },
+          },
+          required: ["message_id"],
         },
       },
     ],
@@ -392,6 +466,99 @@ async function main() {
                 type: "text",
                 text: `Found ${result.pagination?.total_entries || 0} organizations\n\n` +
                       `Top Results:\n${JSON.stringify(summary, null, 2)}\n\n` +
+                      `Full data:\n${JSON.stringify(result, null, 2)}`,
+              },
+            ],
+          };
+        }
+
+        case "apollo_search_sequences": {
+          const validated = SearchSequencesSchema.parse(args);
+
+          const params: any = {
+            page: validated.page,
+            per_page: validated.per_page,
+          };
+
+          if (validated.name) params.name = validated.name;
+
+          const result = await client.searchSequences(params);
+
+          const sequences = result.emailer_campaigns || [];
+          const summary = sequences.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            active: s.active,
+            num_steps: s.num_steps,
+            stats: {
+              sent: s.num_contacted_people,
+              bounced: s.num_bounced_people,
+              replied: s.num_replied_people,
+              interested: s.num_interested_people,
+              opt_out: s.num_opt_out_people,
+            },
+          }));
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Found ${sequences.length} sequences\n\n` +
+                      `Summary:\n${JSON.stringify(summary, null, 2)}\n\n` +
+                      `Full data:\n${JSON.stringify(result, null, 2)}`,
+              },
+            ],
+          };
+        }
+
+        case "apollo_get_email_accounts": {
+          const result = await client.getEmailAccounts();
+
+          const accounts = result.email_accounts || [];
+          const summary = accounts.map((a: any) => ({
+            id: a.id,
+            email: a.email,
+            active: a.active,
+            type: a.type,
+          }));
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Found ${accounts.length} email accounts\n\n` +
+                      `Accounts:\n${JSON.stringify(summary, null, 2)}\n\n` +
+                      `Full data:\n${JSON.stringify(result, null, 2)}`,
+              },
+            ],
+          };
+        }
+
+        case "apollo_get_email_message_activities": {
+          const { message_id } = GetEmailMessageActivitiesSchema.parse(args);
+
+          const result = await client.getEmailMessageActivities(message_id);
+
+          const activities = result.emailer_touches || [];
+          const summary = {
+            message_id,
+            total_activities: activities.length,
+            opens: activities.filter((a: any) => a.touch_type === "opened").length,
+            clicks: activities.filter((a: any) => a.touch_type === "clicked").length,
+            replies: activities.filter((a: any) => a.touch_type === "replied").length,
+            activities: activities.map((a: any) => ({
+              type: a.touch_type,
+              created_at: a.created_at,
+              user_agent: a.user_agent,
+            })),
+          };
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Email Message Activities:\n\n` +
+                      `${JSON.stringify(summary, null, 2)}\n\n` +
                       `Full data:\n${JSON.stringify(result, null, 2)}`,
               },
             ],
